@@ -41,18 +41,18 @@ class L4State14(app_manager.RyuApp):
         eth = pkt.get_protocols(ethernet.ethernet)[0]
         #
         # if msg.buffer_id != ofp.OFP_NO_BUFFER:
-	    #     return
-        print("data path ****///: ",dp)
-        print("msg /: ", msg)
-        print("IN Port: ", in_port)
-        print(pkt)
-        print("ETH: ", eth)
-        print("DID: ", did)
+        #     return
+        # print("data path ****///: ",dp)
+        # print("msg /: ", msg)
+        # print("IN Port: ", in_port)
+        # print(pkt)
+        # print("ETH: ", eth)
+        # print("DID: ", did)
 
 
-        print("THIS IS THE HT")
-        print(self.ht)
-        print(type(self.ht))
+        # print("THIS IS THE HT")
+        # print(self.ht)
+        # print(type(self.ht))
 
 
         # deterministically determining out port
@@ -61,19 +61,27 @@ class L4State14(app_manager.RyuApp):
         # out_port = 1 if out_port == 2 else 2
 
         print("OUT Port: ", out_port)
-        acts = [psr.OFPActionOutput(out_port)]
+        acts = [psr.OFPActionOutput(out_port)] # do I need this?
 
         # IPv4 has proto 2048
         # need to check if tcp
         if eth.ethertype == 2048:
             tcph = pkt.get_protocols(tcp.tcp)
+            # print(tcph)
+
             if len(tcph) >= 1:
                 iph = pkt.get_protocols(ipv4.ipv4)
+                print("=-==-=-=-IP header=-==---=-=")
+                print(iph)
+                print("=-==-=-=-=-=-=-=-==-==---=-=")
 
-                srcip = iph[0].src
-                dstip = iph[0].dst
+                # parsing ip and tcp headers
+                srcip   = iph[0].src
+                dstip   = iph[0].dst
+                ipproto = iph[0].proto
                 srcport = tcph[0].src_port
                 dstport = tcph[0].dst_port
+
                 flow_key = (srcip, dstip, srcport, dstport)
                 opp_flow_key = (dstip, srcip, dstport, srcport)
 
@@ -83,8 +91,11 @@ class L4State14(app_manager.RyuApp):
                     if flow_key not in self.ht:
                         self.ht.add(flow_key)
                     # insert flow in switch
-                    mtc = psr.OFPMatch(in_port=in_port, eth_dst=eth.dst, eth_src=eth.src)
+                    mtc = psr.OFPMatch(eth_type=eth.ethertype, in_port=in_port, ipv4_src=srcip, ipv4_dst=dstip, tcp_src=srcport, tcp_dst=dstport, ip_proto=ipproto)
                     self.add_flow(dp, 1, mtc, acts, msg.buffer_id)
+                    if msg.buffer_id != ofp.OFP_NO_BUFFER:
+                        return
+
                 # if packet comes from port 2
                 if in_port == 2:
                     # if opposite flow key not in the has table, drop the packet
@@ -93,10 +104,17 @@ class L4State14(app_manager.RyuApp):
                     # otherwise
                     else:
                         # forward to port 1
-                        in_port = 1
+                        # dp.send_msg(1)
+                        # acts = [psr.OFPActionOutput(1)]
                         # add flow entry to switch again
-                        mtc = psr.OFPMatch(in_port=in_port, eth_dst=eth.dst, eth_src=eth.src)
+                        mtc = psr.OFPMatch(eth_type=eth.ethertype, in_port=in_port, ipv4_src=srcip, ipv4_dst=dstip,
+                                           tcp_src=srcport, tcp_dst=dstport, ip_proto=ipproto)
                         self.add_flow(dp, 1, mtc, acts, msg.buffer_id)
+                        if msg.buffer_id != ofp.OFP_NO_BUFFER:
+                            return
+
+
+
 
 
 
