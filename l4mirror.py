@@ -34,6 +34,7 @@ class L4Mirror14(app_manager.RyuApp):
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
+        print("packet")
         msg = ev.msg
         in_port, pkt = (msg.match['in_port'], packet.Packet(msg.data))
         dp = msg.datapath
@@ -106,7 +107,7 @@ class L4Mirror14(app_manager.RyuApp):
                         self.ht[flow_key] += 1
                         print(self.ht[flow_key], "th packet")
                         acts.append(psr.OFPActionOutput(3))
-                if in_port == 1:
+                elif in_port == 1:
 
                     #
                     # if flow_key in self.ht.keys():
@@ -131,7 +132,8 @@ class L4Mirror14(app_manager.RyuApp):
                     self.add_flow(dp, 1, mtc, acts, msg.buffer_id)
                     if msg.buffer_id != ofp.OFP_NO_BUFFER:
                         return
-
+                else:
+                    return
 
 
 
