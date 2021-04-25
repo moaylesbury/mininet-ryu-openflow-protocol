@@ -43,7 +43,7 @@ class L4State14(app_manager.RyuApp):
 
         # deterministically find out port
         out_port = 1 if in_port == 2 else 2
-        # forward packet to our port
+        # forward packet to out port
         acts = [psr.OFPActionOutput(out_port)]
 
         # check if packet is IPv4 (has protocol 2048)

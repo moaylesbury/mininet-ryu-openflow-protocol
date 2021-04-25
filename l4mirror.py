@@ -34,7 +34,6 @@ class L4Mirror14(app_manager.RyuApp):
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def _packet_in_handler(self, ev):
-        print("packet")
         msg = ev.msg
         in_port, pkt = (msg.match['in_port'], packet.Packet(msg.data))
         dp = msg.datapath
@@ -65,48 +64,35 @@ class L4Mirror14(app_manager.RyuApp):
 
                 # if in port is 2 and an external TCP connection is initiated
                 if in_port == 2 and tcph[0].has_flags(tcp.TCP_SYN) and not tcph[0].has_flags(tcp.TCP_ACK):
-                    print("INIT")
                     # add key flow key to dictionary ht, with initial packet count 1
                     self.ht[flow_key] = 1
                     # forward to port 3
                     acts.append(psr.OFPActionOutput(3))
-                    print(self.ht[flow_key])
 
                 # if in port is 3 and external TCP connection is already initiated
                 elif in_port == 2 and flow_key in self.ht.keys():
-                    # if tenth packet from this connection
+                    # if tenth packet from this connection (where 0th index is the first packet and 9th is the tenth
+                    # packet)
                     if self.ht[flow_key] == 9:
-                        print("tenth packet`")
-                        # print(acts)
                         # delete flow from dictionary
                         del self.ht[flow_key]
-                        # add flow to switch
-
+                        # add flow to switch, with separate acts
                         acts2 = [psr.OFPActionOutput(1)]
-
-                        # acts2 = [psr.OFPActionOutput(1)]
-                        print(acts)
-                        print(acts2)
                         mtc = psr.OFPMatch(eth_type=eth.ethertype, in_port=in_port, ipv4_src=srcip, ipv4_dst=dstip,
                                            tcp_src=srcport, tcp_dst=dstport, ip_proto=ipproto)
                         self.add_flow(dp, 1, mtc, acts2, msg.buffer_id)
 
                         # if no buffer ID return
-                        # return
                         if msg.buffer_id != ofp.OFP_NO_BUFFER:
-                            print("returning")
                             return
                         acts.append(psr.OFPActionOutput(3))
 
-
                     # if less than tenth packet from this connection
                     else:
-                        print("else")
                         # increment packet count
                         self.ht[flow_key] += 1
                         # forward to port 3
                         acts.append(psr.OFPActionOutput(3))
-                        print(self.ht[flow_key])
 
                 # if in port is 1
                 elif in_port == 1:
@@ -120,7 +106,6 @@ class L4Mirror14(app_manager.RyuApp):
 
                 # otherwise return
                 else:
-                    print("we are returning")
                     return
 
         #
