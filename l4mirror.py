@@ -46,24 +46,13 @@ class L4Mirror14(app_manager.RyuApp):
         out_port = 2 if in_port == 1 else 1
         #
 
+        # forward packet to out port
         acts = [psr.OFPActionOutput(out_port)]
 
-        # IPv4 has proto 2048
+        # check if packet is IPv4 (has protocol 2048)
         if eth.ethertype == 2048:
-            tcph = pkt.get_protocols(tcp.tcp)
-            # check if tcp
+            # this will be a TCP IPv4 packet if the TCP header exists
             if len(tcph) >= 1:
-                iph = pkt.get_protocols(ipv4.ipv4)
-                # print("=-==-=-=-TCP header=-==---=-=")
-                # header = tcp.tcp(bits=(tcp.TCP_SYN | tcp.TCP_ACK))
-                # print("header: ", header)
-                # print("tcph: ", tcph[0])
-                # print(in_port == 2 and tcph[0].has_flags(tcp.TCP_SYN) and not tcph[0].has_flags(tcp.TCP_ACK))
-                # print("in port: ", in_port==2)
-                # print("has syn: ", tcph[0].has_flags(tcp.TCP_SYN))
-                # print("not has ack: ", not tcph[0].has_flags(tcp.TCP_ACK))
-                # print("=-==-=-=-=-=--=-=-==-==---=-=")
-
                 # parsing ip and tcp headers
                 srcip = iph[0].src
                 dstip = iph[0].dst
@@ -71,75 +60,68 @@ class L4Mirror14(app_manager.RyuApp):
                 srcport = tcph[0].src_port
                 dstport = tcph[0].dst_port
 
+                # creating four-tuple flow key
                 flow_key = (srcip, dstip, srcport, dstport)
-                opp_flow_key = (dstip, srcip, dstport, srcport)
 
+                # if in port is 2 and an external TCP connection is initiated
                 if in_port == 2 and tcph[0].has_flags(tcp.TCP_SYN) and not tcph[0].has_flags(tcp.TCP_ACK):
-                    print("port 2")
-                    # if flow_key not in self.ht.keys():
-                    print("FLOW INITIATED")
-                    print("1 st packet")
+                    print("INIT")
+                    # add key flow key to dictionary ht, with initial packet count 1
                     self.ht[flow_key] = 1
+                    # forward to port 3
                     acts.append(psr.OFPActionOutput(3))
-                    # else:
-                    #     if self.ht[flow_key] == 10:
-                    #         print("tenth packet!")
-                    #         del self.ht[flow_key]
-                    #         mtc = psr.OFPMatch(eth_type=eth.ethertype, in_port=in_port, ipv4_src=srcip, ipv4_dst=dstip,
-                    #                            tcp_src=srcport, tcp_dst=dstport, ip_proto=ipproto)
-                    #         self.add_flow(dp, 1, mtc, acts, msg.buffer_id)
-                    #         if msg.buffer_id != ofp.OFP_NO_BUFFER:
-                    #             return
-                    #     else:
-                    #         self.ht[flow_key] += 1
-                    #         print(self.ht[flow_key], "th packet")
+                    print(self.ht[flow_key])
+
+                # if in port is 3 and external TCP connection is already initiated
                 elif in_port == 2 and flow_key in self.ht.keys():
+                    # if tenth packet from this connection
                     if self.ht[flow_key] == 9:
-                        print("10th packet")
+                        print("tenth packet`")
+                        # print(acts)
+                        # delete flow from dictionary
                         del self.ht[flow_key]
+                        # add flow to switch
+
+                        acts2 = [psr.OFPActionOutput(1)]
+
+                        # acts2 = [psr.OFPActionOutput(1)]
+                        print(acts)
+                        print(acts2)
                         mtc = psr.OFPMatch(eth_type=eth.ethertype, in_port=in_port, ipv4_src=srcip, ipv4_dst=dstip,
                                            tcp_src=srcport, tcp_dst=dstport, ip_proto=ipproto)
-                        self.add_flow(dp, 1, mtc, acts, msg.buffer_id)
+                        self.add_flow(dp, 1, mtc, acts2, msg.buffer_id)
+
+                        # if no buffer ID return
+                        # return
                         if msg.buffer_id != ofp.OFP_NO_BUFFER:
+                            print("returning")
                             return
-
-                    else:
-                        self.ht[flow_key] += 1
-                        print(self.ht[flow_key], "th packet")
                         acts.append(psr.OFPActionOutput(3))
+
+
+                    # if less than tenth packet from this connection
+                    else:
+                        print("else")
+                        # increment packet count
+                        self.ht[flow_key] += 1
+                        # forward to port 3
+                        acts.append(psr.OFPActionOutput(3))
+                        print(self.ht[flow_key])
+
+                # if in port is 1
                 elif in_port == 1:
-
-                    #
-                    # if flow_key in self.ht.keys():
-                    #     if self.ht[flow_key] == 10:
-                    #         print("DEL")
-                    #         del self.ht[flow_key]
-                    #         mtc = psr.OFPMatch(eth_type=eth.ethertype, in_port=in_port, ipv4_src=srcip, ipv4_dst=dstip,
-                    #                            tcp_src=srcport, tcp_dst=dstport, ip_proto=ipproto)
-                    #         self.add_flow(dp, 1, mtc, acts, msg.buffer_id)
-                    #         if msg.buffer_id != ofp.OFP_NO_BUFFER:
-                    #             return
-                    #     else:
-                    #         print("inc two")
-                    #         self.ht[flow_key] += 1
-
-
-
-                    print("port 1")
-                    # acts.append(psr.OFPActionOutput(3))
+                    # add flow to switch
                     mtc = psr.OFPMatch(eth_type=eth.ethertype, in_port=in_port, ipv4_src=srcip, ipv4_dst=dstip,
                                        tcp_src=srcport, tcp_dst=dstport, ip_proto=ipproto)
                     self.add_flow(dp, 1, mtc, acts, msg.buffer_id)
+                    # if no buffer ID return
                     if msg.buffer_id != ofp.OFP_NO_BUFFER:
                         return
+
+                # otherwise return
                 else:
+                    print("we are returning")
                     return
-
-
-
-
-
-
 
         #
         data = msg.data if msg.buffer_id == ofp.OFP_NO_BUFFER else None
